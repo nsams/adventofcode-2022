@@ -4,12 +4,15 @@ import Graph from "node-dijkstra";
 const inputStr = readFileSync("input.txt").toString();
 //const inputStr = readFileSync("test-input.txt").toString();
 
-const elevationMap = inputStr.split("\n").map((line) => {
-    return line.split("").map((el) => {
-        if (el == "S" || el === "E") return el;
-        return el.charCodeAt(0) - "a".charCodeAt(0);
+const elevationMap = inputStr
+    .trim()
+    .split("\n")
+    .map((line) => {
+        return line.split("").map((el) => {
+            if (el == "S" || el === "E") return el;
+            return el.charCodeAt(0) - "a".charCodeAt(0);
+        });
     });
-});
 
 type Coordinates = { x: number; y: number };
 type Move = { direction: "start" | "up" | "down" | "left" | "right"; coordinates: Coordinates };
@@ -47,9 +50,11 @@ function possibleMoves(p: Coordinates) {
         if (toElevation == "E" && fromElevation == 25 /*z*/) return true;
         if (toElevation == "E") return false;
         if (toElevation == "S") return false;
+        if (fromElevation == "S" && toElevation != 0) return false;
         if (fromElevation == "S" || fromElevation == "E") return true;
 
-        return fromElevation >= toElevation - 1;
+        //return fromElevation >= toElevation - 1;
+        return toElevation - fromElevation <= 1;
     }
     const ret: Move[] = [];
     if (canMove(p, { x: p.x, y: p.y - 1 })) {
@@ -92,7 +97,7 @@ for (const node of nodes) {
 }
 
 const p = route.path(startNode, stopNode) as string[];
-//console.log(p);
+console.log("Try 1", p);
 console.log("Try 1", p.length - 1);
 
 // try 2
@@ -100,21 +105,34 @@ const visited = new Map<string, MovementGraph>();
 class MovementGraph {
     public possibleMoves?: MovementGraph[];
     constructor(public move: Move, public step = 0, public parent: MovementGraph | null = null) {
-        const el = elevation(move.coordinates);
-        if (el == "E") {
-            console.log("Try 2: Found E with steps", step);
-        }
         const key = move.coordinates.x + "," + move.coordinates.y;
         visited.set(key, this);
     }
 
     build() {
+        console.log("building next step after step", this.step);
         this.possibleMoves = possibleMoves(this.move.coordinates)
             .filter((move) => {
                 const key = move.coordinates.x + "," + move.coordinates.y;
-                return !visited.has(key);
+                if (visited.has(key)) {
+                    if (visited.get(key)!.step > this.step + 1) {
+                        console.log("Step ", this.step, "visited already as step ", visited.get(key)!.step);
+                        //return true;
+                    } else {
+                        //return false;
+                    }
+                    return false;
+                } else {
+                    return true;
+                }
             })
-            .map((m) => new MovementGraph(m, this.step + 1, this));
+            .map((m) => {
+                const el = elevation(m.coordinates);
+                if (el == "E") {
+                    console.log("Try 2: Found E with steps", this.step - 1);
+                }
+                return new MovementGraph(m, this.step + 1, this);
+            });
     }
 }
 const root = new MovementGraph({ direction: "start", coordinates: start });
@@ -125,6 +143,8 @@ while (stack.length > 0) {
     }
     stack = stack.reduce((acc, i) => (acc = [...acc, ...i.possibleMoves!]), [] as MovementGraph[]);
 }
+
+console.log("done");
 
 let pathNum = 0;
 class Path {
